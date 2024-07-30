@@ -17,6 +17,12 @@ class JobWithStatusMixin:
         else:
             return obj.job_status
 
+    def processing_took(self, obj):
+        if obj.processing_finished_at and obj.processing_initiated:
+            return obj.processing_finished_at - obj.processing_initiated
+        else:
+            return None
+
 
 class ImportJobForm(forms.ModelForm):
     model = forms.ChoiceField(label=_("Name of model to import to"))
@@ -41,11 +47,14 @@ class ImportJobAdmin(JobWithStatusMixin, admin.ModelAdmin):
     form = ImportJobForm
     list_display = (
         "model",
-        "job_status_info",
         "file",
         "change_summary",
         "imported",
         "author",
+        "job_status_info",
+        "processing_initiated",
+        "processing_finished_at",
+        "processing_took",
         "updated_by",
     )
     readonly_fields = (
@@ -90,8 +99,11 @@ class ExportJobAdmin(JobWithStatusMixin, admin.ModelAdmin):
         "model",
         "app_label",
         "file",
-        "job_status_info",
         "author",
+        "job_status_info",
+        "processing_initiated",
+        "processing_finished_at",
+        "processing_took",
         "updated_by",
     )
     readonly_fields = (
@@ -102,6 +114,7 @@ class ExportJobAdmin(JobWithStatusMixin, admin.ModelAdmin):
         "model",
         "file",
         "processing_initiated",
+        "processing_finished_at",
     )
     exclude = ("job_status",)
 

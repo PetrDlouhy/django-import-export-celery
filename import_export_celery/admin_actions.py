@@ -31,6 +31,7 @@ run_import_job_action_dry.short_description = _("Perform dry import")
 def run_export_job_action(modeladmin, request, queryset):
     for instance in queryset:
         instance.processing_initiated = timezone.now()
+        instance.job_status = "Export initiated"
         instance.save()
         tasks.run_export_job.delay(instance.pk)
 

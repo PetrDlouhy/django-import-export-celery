@@ -14,10 +14,11 @@ from django.utils.translation import gettext_lazy as _
 from ..fields import ImportExportFileField
 from ..tasks import run_export_job
 from ..utils import get_formats, get_export_job_email_on_completion
+from .base import BaseJob
 
 
 @with_author
-class ExportJob(models.Model):
+class ExportJob(BaseJob):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._content_type = None
@@ -28,19 +29,6 @@ class ExportJob(models.Model):
         blank=False,
         null=False,
         max_length=255,
-    )
-
-    processing_initiated = models.DateTimeField(
-        verbose_name=_("Have we started processing the file? If so when?"),
-        null=True,
-        blank=True,
-        default=None,
-    )
-
-    job_status = models.CharField(
-        verbose_name=_("Status of the job"),
-        max_length=160,
-        blank=True,
     )
 
     format = models.CharField(
@@ -148,5 +136,6 @@ class ExportJob(models.Model):
 def exportjob_post_save(sender, instance, **kwargs):
     if instance.resource and not instance.processing_initiated:
         instance.processing_initiated = timezone.now()
+        instance.job_status = "Export initiated"
         instance.save()
         transaction.on_commit(lambda: run_export_job.delay(instance.pk))

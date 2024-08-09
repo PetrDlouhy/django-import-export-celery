@@ -221,6 +221,7 @@ def run_import_job(pk, dry_run=True):
 def run_export_job(pk):
     log.info("Exporting %s" % pk)
     export_job = models.ExportJob.objects.get(pk=pk)
+    export_job.job_status = "Export celery job initiated"
     export_job.processing_finished_at = None
     export_job.save()
     resource_class = export_job.get_resource_class()

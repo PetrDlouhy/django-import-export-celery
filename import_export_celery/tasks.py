@@ -44,6 +44,7 @@ def get_format(job):
 
 
 def _run_import_job(import_job, dry_run=True):
+    import_job.processing_finished_at = None
     change_job_status(import_job, "import", "1/5 Import started", dry_run)
     if dry_run:
         import_job.errors = ""
@@ -190,6 +191,7 @@ def _run_import_job(import_job, dry_run=True):
         )
     else:
         import_job.imported = timezone.now()
+    import_job.processing_finished_at = timezone.now()
     change_job_status(import_job, "import", "5/5 Import job finished", dry_run)
     import_job.save()
 
@@ -219,6 +221,9 @@ def run_import_job(pk, dry_run=True):
 def run_export_job(pk):
     log.info("Exporting %s" % pk)
     export_job = models.ExportJob.objects.get(pk=pk)
+    export_job.job_status = "Export celery job initiated"
+    export_job.processing_finished_at = None
+    export_job.save()
     resource_class = export_job.get_resource_class()
     queryset = export_job.get_queryset()
     qs_len = len(queryset)
@@ -239,11 +244,12 @@ def run_export_job(pk):
             self.row_number += 1
             return super().export_resource(*args, **kwargs)
 
-    resource = Resource(export_job=export_job)
+    resource = Resource(export_job=export_job, **export_job.resource_kwargs)
 
     data = resource.export(queryset)
     format = get_format(export_job)
     serialized = format.export_data(data)
+    export_job.processing_finished_at = timezone.now()
     change_job_status(export_job, "export", "Export complete")
     filename = "{app}-{model}-{date}.{extension}".format(
         app=export_job.app_label,

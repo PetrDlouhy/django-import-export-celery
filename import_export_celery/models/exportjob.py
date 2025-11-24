@@ -1,6 +1,5 @@
 # Copyright (C) 2019 o.s. Auto*Mat
 from django.utils import timezone
-import json
 
 from author.decorators import with_author
 
@@ -15,10 +14,11 @@ from django.utils.translation import gettext_lazy as _
 from ..fields import ImportExportFileField
 from ..tasks import run_export_job
 from ..utils import get_formats, get_export_job_email_on_completion
+from .base import BaseJob
 
 
 @with_author
-class ExportJob(models.Model):
+class ExportJob(BaseJob):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._content_type = None
@@ -29,19 +29,6 @@ class ExportJob(models.Model):
         blank=False,
         null=False,
         max_length=255,
-    )
-
-    processing_initiated = models.DateTimeField(
-        verbose_name=_("Have we started processing the file? If so when?"),
-        null=True,
-        blank=True,
-        default=None,
-    )
-
-    job_status = models.CharField(
-        verbose_name=_("Status of the job"),
-        max_length=160,
-        blank=True,
     )
 
     format = models.CharField(
@@ -67,8 +54,15 @@ class ExportJob(models.Model):
         default="",
     )
 
-    queryset = models.TextField(
-        verbose_name=_("JSON list of pks to export"),
+    resource_kwargs = models.JSONField(
+        verbose_name=_("Resource additional data parameters"),
+        default=None,
+        null=True,
+        blank=True,
+    )
+
+    queryset = models.JSONField(
+        verbose_name=_("JSON list of pks to export or dict of queryset filters"),
         null=False,
     )
 
@@ -104,14 +98,20 @@ class ExportJob(models.Model):
         return self._content_type
 
     def get_queryset(self):
-        pks = json.loads(self.queryset)
+        queryset_spec = self.queryset
+        if isinstance(queryset_spec, list):
+            filters = {"pk__in": queryset_spec}
+        elif isinstance(queryset_spec, dict):
+            filters = queryset_spec
+
         # If customised queryset for the model exists
         # then it'll apply filter on that otherwise it'll
         # apply filter directly on the model.
         resource_class = self.get_resource_class()
         if hasattr(resource_class, "get_export_queryset"):
-            return resource_class().get_export_queryset().filter(pk__in=pks)
-        return self.get_content_type().model_class().objects.filter(pk__in=pks)
+            kwargs = self.resource_kwargs or {}
+            return resource_class(**kwargs).get_export_queryset().filter(**filters)
+        return self.get_content_type().model_class().objects.filter(**filters)
 
     def get_resource_choices(self):
         return [
@@ -136,5 +136,6 @@ class ExportJob(models.Model):
 def exportjob_post_save(sender, instance, **kwargs):
     if instance.resource and not instance.processing_initiated:
         instance.processing_initiated = timezone.now()
+        instance.job_status = "Export initiated"
         instance.save()
         transaction.on_commit(lambda: run_export_job.delay(instance.pk))

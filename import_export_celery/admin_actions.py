@@ -1,5 +1,4 @@
 from django.utils import timezone
-import json
 from uuid import UUID
 
 from django.utils.translation import gettext_lazy as _
@@ -32,6 +31,7 @@ run_import_job_action_dry.short_description = _("Perform dry import")
 def run_export_job_action(modeladmin, request, queryset):
     for instance in queryset:
         instance.processing_initiated = timezone.now()
+        instance.job_status = "Export initiated"
         instance.save()
         tasks.run_export_job.delay(instance.pk)
 
@@ -45,12 +45,10 @@ def create_export_job_action(modeladmin, request, queryset):
         ej = ExportJob.objects.create(
             app_label=arbitrary_obj._meta.app_label,
             model=arbitrary_obj._meta.model_name,
-            queryset=json.dumps(
-                [
-                    str(obj.pk) if isinstance(obj.pk, UUID) else obj.pk
-                    for obj in queryset
-                ]
-            ),
+            queryset=[
+                str(obj.pk) if isinstance(obj.pk, UUID) else obj.pk
+                for obj in queryset
+            ],
             site_of_origin=request.scheme + "://" + request.get_host(),
         )
     rurl = reverse(

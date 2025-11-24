@@ -15,6 +15,7 @@ from import_export.formats.base_formats import DEFAULT_FORMATS
 
 from ..fields import ImportExportFileField
 from ..tasks import run_import_job
+from .base import BaseJob
 
 import logging
 
@@ -22,20 +23,13 @@ logger = logging.getLogger(__name__)
 
 
 @with_author
-class ImportJob(models.Model):
+class ImportJob(BaseJob):
     file = ImportExportFileField(
         verbose_name=_("File to be imported"),
         upload_to="django-import-export-celery-import-jobs",
         blank=False,
         null=False,
         max_length=255,
-    )
-
-    processing_initiated = models.DateTimeField(
-        verbose_name=_("Have we started processing the file? If so when?"),
-        null=True,
-        blank=True,
-        default=None,
     )
 
     imported = models.DateTimeField(
@@ -68,12 +62,6 @@ class ImportJob(models.Model):
         max_length=160,
     )
 
-    job_status = models.CharField(
-        verbose_name=_("Status of the job"),
-        max_length=160,
-        blank=True,
-    )
-
     class Meta:
         verbose_name = _("Import job")
         verbose_name_plural = _("Import jobs")
@@ -92,6 +80,7 @@ class ImportJob(models.Model):
 def importjob_post_save(sender, instance, **kwargs):
     if not instance.processing_initiated:
         instance.processing_initiated = timezone.now()
+        instance.job_status = "Processing initiated"
         instance.save()
         transaction.on_commit(
             lambda: run_import_job.delay(

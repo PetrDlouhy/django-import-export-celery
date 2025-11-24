@@ -97,6 +97,7 @@ class ExportJobAdmin(JobWithStatusMixin, admin.ModelAdmin):
     form = ExportJobForm
     list_display = (
         "model",
+        "resource",
         "app_label",
         "file",
         "author",
@@ -118,7 +119,7 @@ class ExportJobAdmin(JobWithStatusMixin, admin.ModelAdmin):
     )
     exclude = ("job_status",)
 
-    list_filter = ("model",)
+    list_filter = ("model", "resource")
 
     def has_add_permission(self, request, obj=None):
         return False
